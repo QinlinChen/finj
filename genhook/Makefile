@@ -13,7 +13,8 @@ TEMPLATES_OUT := $(addprefix $(TEMPLATES_OUT_DIR)/,$(TEMPLATES))
 generate: $(TEMPLATES_OUT)
 
 $(TEMPLATES_OUT): $(TEMPLATES_IN) $(HOOK_DATA) genhook.py
-	python3 genhook.py -i $(TEMPLATES_IN_DIR) -o $(TEMPLATES_OUT_DIR) \
+	@echo generate $(TEMPLATES_OUT)
+	@python3 genhook.py -i $(TEMPLATES_IN_DIR) -o $(TEMPLATES_OUT_DIR) \
 		-d $(HOOK_DATA) $(TEMPLATES)
 
 clean:
