@@ -1,19 +1,23 @@
-TARGET := main
+ifndef BUILD_DIR
+$(error BUILD_DIR undefined)
+endif
+
+TARGET := libfinj.a
 
 CC := gcc
-LD := gcc
 CFLAGS += -O2 -Wall -Werror
-LDFLAGS +=
+AR := ar
+ARFLAGS := rc
 
-BUILD_DIR := ./build
 OBJ_DIR := $(BUILD_DIR)/obj
 
 SRCS := $(shell find . -path $(BUILD_DIR) -prune -o -name "*.c" -print)
 OBJS := $(SRCS:%.c=$(OBJ_DIR)/%.o)
 
-$(TARGET): $(OBJS)
-	@echo + LD $@
-	@$(LD) $(CFLAGS) $(LDFLAGS) -o $@ $^
+$(BUILD_DIR)/$(TARGET): $(OBJS)
+	@echo $(BUILD_DIR)
+	@echo + AR $@
+	@$(AR) $(ARFLAGS) $@ $^
 
 $(OBJ_DIR)/%.o: %.c
 	@echo + CC $<
@@ -26,8 +30,3 @@ $(OBJ_DIR)/%.o: %.c
 
 clean:
 	-rm -rf $(BUILD_DIR)
-	-rm $(TARGET)
-
-test: $(TARGET)
-	echo > /tmp/ctest.log
-	./$(TARGET)

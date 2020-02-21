@@ -1,13 +1,16 @@
-SUB_DIR = genhook src
+MODULES = genhook src
+export BUILD_DIR := $(shell pwd)/build
 
 all:
-	@for dir in $(SUB_DIR); do \
-		$(MAKE) -C $$dir; \
+	@for subdir in $(MODULES); do \
+		$(MAKE) -C $$subdir; \
 	done
 
-.PHONY: clean
+.PHONY: clean test
 
 clean:
-	@for dir in $(SUB_DIR); do \
-		$(MAKE) -C $$dir clean; \
-	done
+	$(MAKE) -C genhook clean
+	-rm -rf $(BUILD_DIR)
+
+test:
+	$(MAKE) -C test

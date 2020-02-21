@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LOG_FILE    "/tmp/ctest.log"
+#define LOG_FILE    "/tmp/finj.log"
 #define LOG_LEVEL   LEVEL_INFO
 
 enum {
