@@ -508,7 +508,8 @@ static int is_reg_or_dir(int dirfd, const char *filename)
 {
     struct stat sbuf;
     if (fstatat(dirfd, filename, &sbuf, 0) != 0) {
-        log_unix_error("stat %s error", filename);
+        if (errno != ENOENT)    /* Ignore ENOENT */
+            log_unix_error("stat %s error", filename);
         monitor_exit(EXIT_FAILURE);
     }
     return (S_ISREG(sbuf.st_mode) || S_ISDIR(sbuf.st_mode));

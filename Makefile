@@ -1,5 +1,6 @@
 MODULES = genhook src
 export BUILD_DIR := $(shell pwd)/build
+export BIN := libfinj.a
 
 all:
 	@for subdir in $(MODULES); do \
