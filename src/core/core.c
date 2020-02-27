@@ -257,18 +257,14 @@ static void monitor_loop(pid_t pid)
                     monitor_exit(EXIT_FAILURE);
                 }
             }
-        }
-        else if (WIFEXITED(status)) {
+        } else if (WIFEXITED(status)) {
             log_info("(monitor)Snapshot exit with %d", WEXITSTATUS(status));
-        }
-        else if (WIFSIGNALED(status)) {
+        } else if (WIFSIGNALED(status)) {
             log_warn("(monitor)Snapshot killed by sig %s",
                      signum_to_str(WTERMSIG(status)));
-        }
-        else if (WIFCONTINUED(status)) {
+        } else if (WIFCONTINUED(status)) {
             log_warn("(monitor)Snapshot continued");
-        }
-        else {
+        } else {
             log_error("(monitor)Unexpected wait status");
             monitor_exit(EXIT_FAILURE);
         }
@@ -504,22 +500,13 @@ static void init_fds_info(pid_t pid)
    will also forbid a R_STAR_W_STAR fd reading after seeing it do a 'w'
    syscall. */
 
-static int is_reg_or_dir(int dirfd, const char *filename)
-{
-    struct stat sbuf;
-    if (fstatat(dirfd, filename, &sbuf, 0) != 0) {
-        if (errno != ENOENT)    /* Ignore ENOENT */
-            log_unix_error("stat %s error", filename);
-        monitor_exit(EXIT_FAILURE);
-    }
-    return (S_ISREG(sbuf.st_mode) || S_ISDIR(sbuf.st_mode));
-}
-
 static int set_auth_on_exit_o;
+static int expect_error_on_exit_o;
 
 static int on_enter_o(int dirfd, const char *filename, int flags)
 {
     set_auth_on_exit_o = AUTH_EMPTY;
+    expect_error_on_exit_o = 0;
 
     if (filename && strcmp(filename, LOG_FILE) == 0) {
         set_auth_on_exit_o = AUTH_ANY;
@@ -529,17 +516,29 @@ static int on_enter_o(int dirfd, const char *filename, int flags)
     if (flags & O_CREAT)
         return SYSCALL_TERM;
 
-    if (is_reg_or_dir(dirfd, filename))
+    struct stat sbuf;
+    if (fstatat(dirfd, filename, &sbuf, 0) != 0) {
+        expect_error_on_exit_o = 1;
+        return SYSCALL_CONT;
+    }
+
+    if (S_ISREG(sbuf.st_mode) || S_ISDIR(sbuf.st_mode)) {
         set_auth_on_exit_o = AUTH_R_STAR_W_STAR;
-    else
+    } else {
         set_auth_on_exit_o = AUTH_W_STAR;
+    }
     return SYSCALL_CONT;
 }
 
 static void on_exit_o(int ret_fd)
 {
-    if (ret_fd < 0)
+    if (ret_fd < 0) {
         return;
+    }
+    if (expect_error_on_exit_o) {
+        log_error("on_enter_o has error");
+        monitor_exit(EXIT_FAILURE);
+    }
     fds_info_set_auth(ret_fd, set_auth_on_exit_o);
 }
 
@@ -739,3 +738,4 @@ static void unmap_shared_memory()
         }
     }
 }
+
