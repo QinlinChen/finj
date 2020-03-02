@@ -60,15 +60,24 @@ static char *read_time(char *buf, int size)
     return buf;
 }
 
-static char *read_comm(char *buf, int size)
+static char *read_cmdline(char *buf, size_t size)
 {
     FILE *fp;
 
-    if ((fp = fopen("/proc/self/comm", "r")) == NULL)
+    if ((fp = fopen("/proc/self/cmdline", "r")) == NULL)
         goto err_out;
+    
+    memset(buf, -1, size);
     if (readline(fp, buf, size) == (char *)-1)
         goto close_and_err_out;
     fclose(fp);
+    
+    int i = size - 1;
+    while (buf[i] == (char)-1)
+        --i;
+    for (--i; i >=0; --i)
+        if (buf[i] == '\0')
+            buf[i] = ' ';
     return buf;
 
 close_and_err_out:
@@ -104,7 +113,7 @@ void log_without_lock(int level, const char *format, ...)
     char prefix[256], text[256], tm[64], comm[64];
     snprintf(prefix, ARRAY_LEN(prefix), "[%s][%s](%ld)(%s)",
              level_to_str(level), read_time(tm, ARRAY_LEN(tm)),
-             (long)getpid(), read_comm(comm, ARRAY_LEN(comm)));
+             (long)getpid(), read_cmdline(comm, ARRAY_LEN(comm)));
 
     va_list ap;
     va_start(ap, format);
