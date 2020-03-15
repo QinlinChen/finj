@@ -30,8 +30,7 @@ int checkpoint(const char *funcname, const char *file,
     if (is_during_test()) {
         /* Determine whether to terminate the test. */
         if (is_time_to_exit_test()) {
-            log_debug("(snapshot)Exit from %s[%s:%s:%d]",
-                      funcname, file, caller, line);
+            log_debug("Exit from %s[%s:%s:%d]", funcname, file, caller, line);
             snapshot_exit(EXIT_SUCCESS);
         }
         return 0;
@@ -44,7 +43,8 @@ int checkpoint(const char *funcname, const char *file,
     int id;
 
     if ((id = fork_snapshot()) < 0) {
-        log_unix_error("Fail to snapshot"); /* Will initialize log automatically */
+        /* Log is initialize automatically */
+        log_unix_error("Fail to snapshot");
         return 0;   /* Ignore snapshot error and continue. */
     }
 
@@ -54,7 +54,7 @@ int checkpoint(const char *funcname, const char *file,
 
     /* Snapshot process: fork a monitor and prepare test environment. */
     init_snapshot();
-    log_debug("(snapshot)Enter from %s[%s:%s:%d]", funcname, file, caller, line);
+    log_debug("Enter from %s[%s:%s:%d]", funcname, file, caller, line);
     return 1;
 }
 
@@ -77,9 +77,11 @@ static int fork_snapshot()
 
 static void init_snapshot()
 {
-    /* Note: we can only use log() with exit() followed before the
-       monitor is initialized. That is say, we can only log() before
-       the snapshot is going to terminate. */
+    /* Note: we can only use log() followed by exit() before the monitor
+       is initialized. That is to avoid the snapshot initializing the log
+       and sharing it with the monitor forked afterwords. */
+
+    set_log_identity("snapshot");
     unmap_shared_memory();
 
     pid_t pid;
@@ -101,6 +103,7 @@ static void init_snapshot()
 
 static void init_monitor(pid_t pid)
 {
+    set_log_identity("monitor");
     close_all_fds(NULL);
     init_fds_info(pid);
     log_unmapped_areas();
@@ -149,7 +152,7 @@ static void synchronize_with_snapshot(pid_t pid)
         log_unix_error("ptrace_setoptions error");
         monitor_exit(EXIT_FAILURE);
     }
-    log_info("(monitor)Trace (%d)", (int)pid);
+    log_info("Trace snapshot(%d)", (int)pid);
     if (ptrace_syscall(pid, 0) != 0) {
         log_unix_error("ptrace_syscall error");
         monitor_exit(EXIT_FAILURE);
@@ -208,7 +211,7 @@ static void monitor_loop(pid_t pid)
     /* Trace the child's syscalls and signals. */
     do {
         if (waitpid(pid, &status, 0) == -1) {
-            log_unix_error("(monitor)waitpid error");
+            log_unix_error("waitpid error");
             monitor_exit(EXIT_FAILURE);
         }
         if (WIFSTOPPED(status)) {
@@ -221,7 +224,8 @@ static void monitor_loop(pid_t pid)
                 on_enter ^= 1;
                 if (on_enter) {
                     result = handle_enter_syscall(&ctx);
-                    assert(result == SYSCALL_TERM || result == SYSCALL_FAKE ||
+                    assert(result == SYSCALL_TERM ||
+                           result == SYSCALL_FAKE ||
                            result == SYSCALL_CONT);
                     log_syscall_handler_result(result, &ctx);
                     if (result == SYSCALL_TERM)
@@ -250,7 +254,7 @@ static void monitor_loop(pid_t pid)
             } else {
                 /* Handle signal. */
                 ctx.signum = WSTOPSIG(status);
-                log_warn("(monitor)See signal %s", signum_to_str(ctx.signum));
+                log_warn("See signal %s", signum_to_str(ctx.signum));
                 handle_signal(&ctx);
                 if (ptrace_syscall(pid, ctx.signum) != 0) {
                     log_unix_error("Ptrace syscall error");
@@ -258,14 +262,14 @@ static void monitor_loop(pid_t pid)
                 }
             }
         } else if (WIFEXITED(status)) {
-            log_info("(monitor)Snapshot exit with %d", WEXITSTATUS(status));
+            log_info("Snapshot exit with %d", WEXITSTATUS(status));
         } else if (WIFSIGNALED(status)) {
-            log_warn("(monitor)Snapshot killed by sig %s",
+            log_warn("Snapshot killed by sig %s",
                      signum_to_str(WTERMSIG(status)));
         } else if (WIFCONTINUED(status)) {
-            log_warn("(monitor)Snapshot continued");
+            log_warn("Snapshot continued");
         } else {
-            log_error("(monitor)Unexpected wait status");
+            log_error("Unexpected wait status");
             monitor_exit(EXIT_FAILURE);
         }
     } while(!WIFEXITED(status) && !WIFSIGNALED(status));
@@ -274,11 +278,11 @@ static void monitor_loop(pid_t pid)
 static void log_syscall_handler_result(int result, struct context *ctx)
 {
     if (result == SYSCALL_CONT) {
-        log_info("(monitor)leak syscall %s", SYSCALL_NAME(&ctx->regs));
+        log_info("leak syscall %s", SYSCALL_NAME(&ctx->regs));
     } else if (result == SYSCALL_TERM) {
-        log_info("(monitor)intercept syscall %s", SYSCALL_NAME(&ctx->regs));
+        log_info("intercept syscall %s", SYSCALL_NAME(&ctx->regs));
     } else if (result == SYSCALL_FAKE) {
-        log_info("(monitor)fake syscall %s", SYSCALL_NAME(&ctx->regs));
+        log_info("fake syscall %s", SYSCALL_NAME(&ctx->regs));
     }
 }
 
@@ -637,10 +641,10 @@ static int on_enter_write(struct context *ctx)
     return result;
 }
 
-/* Signal handlers are used to catch SIGSEGV signal, which is our test
-   oracle. However, since we unmap shared memories in snapshot to avoid
-   side effects, we should ignore the SIGSEGV signal caused by snapshot's
-   access of these unmapped areas. */
+/* Signal handlers are used to detect crashed, which is our test oracle.
+   However, since we have unmapped shared memories during initializing
+   snapshot to avoid side effects, we should ignore the SIGSEGV signal
+   caused by snapshot's access of these unmapped areas. */
 
 static int in_unmapped_areas(void *addr);
 
@@ -651,7 +655,11 @@ static void handle_signal(struct context *ctx)
         ptrace_getsiginfo(ctx->pid, &siginfo);
         if (in_unmapped_areas(siginfo.si_addr))
             return;
-        log_fatal("(monitor)Catch SIGSEGV!");
+        log_fatal("Catch SIGSEGV!");
+    } else if (ctx->signum == SIGABRT) {
+        log_fatal("Catch SIGABRT!");
+    } else if (ctx->signum == SIGILL) {
+        log_fatal("Catch SIGILL!");
     }
 }
 
@@ -697,8 +705,8 @@ static int in_unmapped_areas(void *addr)
 static void log_unmapped_areas()
 {
     for (int i = 0; i < unmapped_areas.n_areas; ++i)
-        log_info("unmap %p-%p", unmapped_areas.areas[i].begin,
-                 unmapped_areas.areas[i].end);
+        log_debug("unmap %p-%p", unmapped_areas.areas[i].begin,
+                  unmapped_areas.areas[i].end);
 }
 
 static int memory_is_shared_and_writable(const char *perms)
@@ -738,4 +746,3 @@ static void unmap_shared_memory()
         }
     }
 }
-

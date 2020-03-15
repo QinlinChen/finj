@@ -8,6 +8,7 @@
 #include "utils.h"
 
 static FILE *_logfp = NULL;
+static const char *_log_identity = "anon";
 
 FILE *init_log()
 {
@@ -49,6 +50,11 @@ void unlock_logfile()
     lock_reg(logfd, F_SETLK, F_UNLCK, 0, SEEK_SET, 0);
 }
 
+void set_log_identity(const char *new_identity)
+{
+    _log_identity = new_identity;
+}
+
 static char *read_time(char *buf, int size)
 {
     time_t t;
@@ -66,12 +72,12 @@ static char *read_cmdline(char *buf, size_t size)
 
     if ((fp = fopen("/proc/self/cmdline", "r")) == NULL)
         goto err_out;
-    
+
     memset(buf, -1, size);
     if (readline(fp, buf, size) == (char *)-1)
         goto close_and_err_out;
     fclose(fp);
-    
+
     int i = size - 1;
     while (buf[i] == (char)-1)
         --i;
@@ -110,17 +116,19 @@ void log_without_lock(int level, const char *format, ...)
     if (!(fp = get_logfp()))
         return;
 
-    char prefix[256], text[256], tm[64], comm[64];
-    snprintf(prefix, ARRAY_LEN(prefix), "[%s][%s](%ld)(%s)",
+    char prefix[256], tm[64], comm[64];
+    snprintf(prefix, ARRAY_LEN(prefix), "[%s %s %s(%ld)](%s)",
              level_to_str(level), read_time(tm, ARRAY_LEN(tm)),
-             (long)getpid(), read_cmdline(comm, ARRAY_LEN(comm)));
+             _log_identity, (long)getpid(),
+             read_cmdline(comm, ARRAY_LEN(comm)));
 
+    char text[256];
     va_list ap;
     va_start(ap, format);
     vsnprintf(text, ARRAY_LEN(text), format, ap);
     va_end(ap);
 
-    /* Do fprintf all at once to keep atomicity. */
+    /* Do fprintf all at once to keep atomicity if possible. */
     fprintf(fp, "%s%s", prefix, text);
     fflush(fp);
 }

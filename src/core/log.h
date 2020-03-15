@@ -16,6 +16,7 @@ enum {
 FILE *init_log();
 FILE *get_logfp();
 int get_logfd();
+void set_log_identity(const char *new_identity);
 void lock_logfile();
 void unlock_logfile();
 void log_without_lock(int level, const char *format, ...);

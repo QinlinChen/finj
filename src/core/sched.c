@@ -27,4 +27,3 @@ int is_time_to_exit_test()
         return 1;
     return 0;
 }
-
