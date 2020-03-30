@@ -1,0 +1,4 @@
+finj-llvm-rt.c
+main
+*.o
+*.ll
