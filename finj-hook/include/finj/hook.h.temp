@@ -3,6 +3,7 @@
 #define _FINJ_HOOK_H
 
 #include <dirent.h>
+struct stat;
 
 #ifndef open
 int finj_open(const char *file, const char *caller, int line, const char * pathname, int flags, ...);

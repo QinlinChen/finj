@@ -1,10 +1,10 @@
-#include "../config.h"
-#include "../sys.h"
+#include "finj/config.h"
+#include "finj/sys.h"
 
 #include <dirent.h>
 #include <sys/wait.h>
 
-#include "utils.h"
+#include "finj/utils.h"
 
 /* ------------------------------------------------
  *                    signal

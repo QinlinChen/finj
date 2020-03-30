@@ -1,11 +1,11 @@
-#include "../config.h"
-#include "../sys.h"
+#include "finj/config.h"
+#include "finj/sys.h"
 
 #include <stdarg.h>
 #include <time.h>
 
-#include "log.h"
-#include "utils.h"
+#include "finj/log.h"
+#include "finj/utils.h"
 
 static FILE *_logfp = NULL;
 static const char *_log_identity = "anon";

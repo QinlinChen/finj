@@ -1,7 +1,7 @@
-#include "../config.h"
-#include "../sys.h"
+#include "finj/config.h"
+#include "finj/sys.h"
 
-#include "sched.h"
+#include "finj/sched.h"
 
 static int _during_test = 0;
 static int _time_to_hit_checkpoint = 0;

@@ -1,12 +1,12 @@
-#include "../config.h"
-#include "../sys.h"
+#include "finj/config.h"
+#include "finj/sys.h"
 
 #include <sys/wait.h>
 #include <sys/mman.h>
 
-#include "log.h"
-#include "utils.h"
-#include "sched.h"
+#include "finj/log.h"
+#include "finj/utils.h"
+#include "finj/sched.h"
 
 #define SNAPSHOT_PROC 0
 #define ORIGINAL_PROC 1

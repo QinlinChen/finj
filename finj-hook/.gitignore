@@ -1,0 +1,4 @@
+src/hook.c
+include/finj/hook.h
+include/finj/unhook.h
+include/finj/hook.h.temp.backup
