@@ -1,4 +1,5 @@
 build_dir := ./build
+install_prefix := /tmp/finj
 
 # define project target, includes, and sources
 finjcore_lib := $(build_dir)/libfinjcore.so
@@ -25,10 +26,17 @@ $(obj_dir)/%.o: %.c
 
 -include $(objs:.o/.d)
 
-.PHONY: clean count
+.PHONY: clean count install
 
 clean:
 	-rm -rf $(build_dir)
 
 count:
 	@find . -name "*.[ch]" | xargs cat | wc -l
+
+install: $(finjcore_lib)
+	@mkdir -p $(install_prefix)
+	@mkdir -p $(install_prefix)/lib
+	@mkdir -p $(install_prefix)/include
+	@cp $(finjcore_lib) $(install_prefix)/lib
+	@cp -r $(finjcore_include_dirs) $(install_prefix)
