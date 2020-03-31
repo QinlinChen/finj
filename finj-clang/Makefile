@@ -1,5 +1,5 @@
 build_dir      := ./build
-install_prefix := /tmp/finj
+install_prefix := $$HOME/finj
 finj_bin_path  := $(install_prefix)/bin
 finj_lib_path  := $(install_prefix)/lib
 

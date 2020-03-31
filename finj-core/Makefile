@@ -1,5 +1,5 @@
 build_dir      := ./build
-install_prefix := /tmp/finj
+install_prefix := $$HOME/finj
 
 # define project target, includes, and sources
 finjcore_lib          := $(build_dir)/libfinjcore.so

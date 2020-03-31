@@ -1,5 +1,5 @@
 build_dir      := ./build
-install_prefix := /tmp/finj
+install_prefix := $$HOME/finj
 
 # find finjcore
 finjcore_include_dirs := ../finj-core/include
