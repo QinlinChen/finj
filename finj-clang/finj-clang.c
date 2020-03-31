@@ -19,7 +19,8 @@ char *mystrdup(const char *s)
 {
     assert(s);
     char *ret = (char *)malloc((strlen(s) + 1) * sizeof(char));
-    assert(ret);
+    if (ret == NULL)
+        die("malloc error");
     strcpy(ret, s);
     return ret;
 }
@@ -35,18 +36,18 @@ char *alloc_printf(const char *fmt, ...)
     va_end(ap);
 
     if (size < 0)
-        return NULL;
+        die("vsnprintf error");
 
     size++;
     buf = malloc(size);
     if (buf == NULL)
-        return NULL;
+        die("malloc error");
 
     va_start(ap, fmt);
     size = vsnprintf(buf, size, fmt, ap);
     if (size < 0) {
         free(buf);
-        return NULL;
+        die("vsnprintf error");
     }
     va_end(ap);
 
@@ -118,7 +119,7 @@ int edit_args(char *cc_argv[], size_t len,
     cc_argv[cc_argc++] = "-Qunused-arguments";
 
     /* Detect stray -v calls from ./configure scripts. */
-    if (argc == 1 && !strcmp(argv[1], "-v"))
+    if (argc > 1 && !strcmp(argv[1], "-v"))
         maybe_linking = 0;
 
     while (--argc) {
@@ -133,9 +134,6 @@ int edit_args(char *cc_argv[], size_t len,
             x_set = 1;
 
         if (!strcmp(cur, "-c") || !strcmp(cur, "-S") || !strcmp(cur, "-E"))
-            maybe_linking = 0;
-
-        if (!strcmp(cur, "-shared"))
             maybe_linking = 0;
 
         if (!strcmp(cur, "-Wl,-z,defs") || !strcmp(cur, "-Wl,--no-undefined"))
@@ -184,12 +182,22 @@ int edit_args(char *cc_argv[], size_t len,
 
 int main(int argc, char** argv)
 {
+    if (argc < 2) {
+        die("This is a clang wrapper for finj's instrumentation. It serves as a\n"
+            "drop-in replacement for clang, letting you recompile third-party\n"
+            "code with the required runtime instrumentation. A common use pattern\n"
+            "would be one of the following:\n\n"
+
+            "  CC=finj-clang ./configure\n"
+            "  CXX=finj-clang++ ./configure\n");
+    }
+
     size_t len = argc + 32;
     char **cc_argv = malloc(len * sizeof(cc_argv[0]));
+    assert(cc_argv);
 
     edit_args(cc_argv, len, argc, argv, find_lib_path(argv[0]));
 
     execvp(cc_argv[0], cc_argv);
-
     die("Fail to execute %s", cc_argv[0]);
 }

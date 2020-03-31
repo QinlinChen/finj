@@ -40,8 +40,8 @@ bool FINJInst::runOnModule(Module &M) {
     if (F.isDeclaration()) {
       StringRef fName = F.getName();
       if (funcsToReplace.find(fName) != funcsToReplace.end()) {
+        outs() << "hook: " << fName << "\n";
         F.setName("finj_" + fName);
-        errs() << "hook: " << fName << "\n";
       }
     }
   }
