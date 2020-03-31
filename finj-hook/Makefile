@@ -1,30 +1,28 @@
-build_dir := ./build
+build_dir      := ./build
 install_prefix := /tmp/finj
 
 # find finjcore
 finjcore_include_dirs := ../finj-core/include
-finjcore_srcs := $(abspath $(shell find ../finj-core/src/ -name "*.c"))
+finjcore_srcs         := $(abspath $(shell find ../finj-core/src/ -name "*.c"))
 
-# find genhook
+# find genhook and define files to generate
 genhook_bin := ../tools/genhook.py
-
-# files to generate
-hook_data := ./data/hook.data
-gens := include/finj/hook.h src/hook.c
+hook_data   := ./data/hook.data
+gens        := include/finj/hook.h src/hook.c
 
 # define project target, includes, and sources
-finjhook_lib := $(build_dir)/libfinjhook.so
+finjhook_lib          := $(build_dir)/libfinjhook.so
 finjhook_include_dirs := ./include $(finjcore_include_dirs)
-finjhook_srcs := src/hook.c $(finjcore_srcs)
+finjhook_srcs         := src/hook.c $(finjcore_srcs)
 
 # intermediate files
 obj_dir := $(build_dir)/obj
-objs := $(finjhook_srcs:%.c=$(obj_dir)/%.o)
+objs    := $(finjhook_srcs:%.c=$(obj_dir)/%.o)
 
 # compile options
-CC := gcc
+CC     := gcc
 CFLAGS += -O2 -Wall -Werror $(addprefix -I, $(finjhook_include_dirs))
-LD := gcc
+LD     := gcc
 
 all: $(gens) $(finjhook_lib)
 

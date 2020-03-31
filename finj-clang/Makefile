@@ -1,13 +1,13 @@
 build_dir      := ./build
 install_prefix := /tmp/finj
 finj_bin_path  := $(install_prefix)/bin
-finj_lib_path  := $(install_prefix)/lib/finj
+finj_lib_path  := $(install_prefix)/lib
 
 # find finjcore
 finjcore_include_dirs := ../finj-core/include
 finjcore_srcs         := $(abspath $(shell find ../finj-core/src/ -name "*.c"))
 
-# find genhook and define files to generate 
+# find genhook and define files to generate
 genhook_bin := ../tools/genhook.py
 llvmrt_data := ./data/finj-llvm-rt.data
 gens        := finj-llvm-rt.c
@@ -75,8 +75,16 @@ $(finjclangxx_bin): $(finjclang_bin)
 	@echo + ln $(notdir $@)
 	@ln -srf $(finjclang_bin) $(finjclangxx_bin)
 
-.PHONY: clean
+.PHONY: clean install
 
 clean:
 	-rm -f $(gens)
 	-rm -rf $(build_dir)
+
+install: all
+	@mkdir -p $(finj_bin_path)
+	@mkdir -p $(finj_lib_path)
+	@cp $(finjllvmrt_lib) $(finj_lib_path)
+	@cp $(finjllvmpass_lib) $(finj_lib_path)
+	@cp $(finjclang_bin) $(finj_bin_path)
+	@cp $(finjclangxx_bin) $(finj_bin_path)

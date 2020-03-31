@@ -36,12 +36,12 @@ char *alloc_printf(const char *fmt, ...)
 
     if (size < 0)
         return NULL;
-    
+
     size++;
     buf = malloc(size);
     if (buf == NULL)
         return NULL;
-    
+
     va_start(ap, fmt);
     size = vsnprintf(buf, size, fmt, ap);
     if (size < 0) {
@@ -82,7 +82,7 @@ const char *find_lib_path(char *cmd)
     }
 
     /* Try the directory where the cmd is installed. */
-    const char *tmp = FINJ_LIB_PATH FINJ_LLVM_RT_LIB;
+    const char *tmp = FINJ_LIB_PATH "/" FINJ_LLVM_RT_LIB;
     if (access(tmp, R_OK) == 0)
         return FINJ_LIB_PATH;
 
