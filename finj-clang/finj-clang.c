@@ -5,9 +5,15 @@
 #include <unistd.h>
 #include <assert.h>
 
-static char *rt_path;     /* Path to runtime libraries         */
-static int cc_argc;       /* Param count, including argv0      */
-static char **cc_argv;    /* Parameters passed to the real CC  */
+#define FINJ_LLVM_PASS_LIB  "libfinj-llvm-pass.so"
+#define FINJ_LLVM_RT_LIB    "libfinj-llvm-rt.a"
+
+#define die(fmt, ...) \
+    do { \
+        fprintf(stderr, fmt "\n", ## __VA_ARGS__); \
+        fflush(stderr); \
+        exit(EXIT_FAILURE); \
+    } while(0)
 
 char *mystrdup(const char *s)
 {
@@ -18,20 +24,7 @@ char *mystrdup(const char *s)
     return ret;
 }
 
-char *get_dir(char *path)
-{
-    char *slash = strrchr(path, '/');
-    if (!slash) {
-        return NULL;
-    }
-
-    *slash = '\0';
-    char *dir = mystrdup(path);
-    *slash = '/';
-    return dir;
-}
-
-char *make_message(const char *fmt, ...)
+char *alloc_printf(const char *fmt, ...)
 {
     int size = 0;
     char *buf = NULL;
@@ -60,47 +53,69 @@ char *make_message(const char *fmt, ...)
     return buf;
 }
 
-void find_rt(char *cmd)
+char *dup_dir(char *path)
 {
-    char *dir = get_dir(cmd);
+    char *slash = strrchr(path, '/');
+    if (!slash) {
+        return NULL;
+    }
+
+    *slash = '\0';
+    char *dir = mystrdup(path);
+    *slash = '/';
+    return dir;
+}
+
+/* Return the path of FINJ_LLVM_RT_LIB and FINJ_LLVM_PASS_LIB */
+const char *find_lib_path(char *cmd)
+{
+    /* First try the directory where the cmd is built. */
+    char *dir = dup_dir(cmd);
     if (dir) {
-        char *tmp = make_message("%s/libfinjpass.so", dir);
+        char *tmp = alloc_printf("%s/" FINJ_LLVM_RT_LIB, dir);
         if (access(tmp, R_OK) == 0) {
-            rt_path = dir;
             free(tmp);
-            return;
+            return dir;
         }
         free(tmp);
         free(dir);
     }
 
-    fprintf(stderr, "Unable to find 'libfinjpass.so'.\n");
+    /* Try the directory where the cmd is installed. */
+    const char *tmp = FINJ_LIB_PATH FINJ_LLVM_RT_LIB;
+    if (access(tmp, R_OK) == 0)
+        return FINJ_LIB_PATH;
+
+    die("Unable to find " FINJ_LLVM_RT_LIB);
 }
 
-void edit_args(int argc, char *argv[])
+int edit_args(char *cc_argv[], size_t len,
+              int argc, char *argv[], const char *lib_path)
 {
-    cc_argc = 1;
-    cc_argv = malloc((argc + 32) * sizeof(char *));
+    if ((int)len - argc < 16)
+        die("Lack spaces to store cc_argv.");
 
-    char *name = strrchr(argv[0], '/');
-    if (!name)
-        name = argv[0];
+    /* Choose between clang or clang++. */
+    char *cmd = strrchr(argv[0], '/');
+    if (!cmd)
+        cmd = argv[0];
     else
-        name++;
-    
-    if (!strcmp(name, "finj-clang++"))
+        cmd++;
+    if (!strcmp(cmd, "finj-clang++"))
         cc_argv[0] = "clang++";
     else
         cc_argv[0] = "clang";
 
+    int cc_argc = 1;
+    int x_set = 0, maybe_linking = 1, bit_mode = 0;
+
+    /* Set arguments to load pass lib. */
     cc_argv[cc_argc++] = "-Xclang";
     cc_argv[cc_argc++] = "-load";
     cc_argv[cc_argc++] = "-Xclang";
-    cc_argv[cc_argc++] = make_message("%s/libfinjpass.so", rt_path);
+    cc_argv[cc_argc++] = alloc_printf("%s/" FINJ_LLVM_PASS_LIB, lib_path);
 
     cc_argv[cc_argc++] = "-Qunused-arguments";
-
-    int x_set = 0, maybe_linking = 1, bit_mode = 0;
 
     /* Detect stray -v calls from ./configure scripts. */
     if (argc == 1 && !strcmp(argv[1], "-v"))
@@ -135,6 +150,13 @@ void edit_args(int argc, char *argv[])
             cc_argv[cc_argc++] = "none";
         }
 
+        if (bit_mode != 0) {
+            // TODO: support it.
+            die("-m32 and -m64 is not supported.");
+        }
+
+        cc_argv[cc_argc++] = alloc_printf("%s/" FINJ_LLVM_RT_LIB, lib_path);
+
         // switch (bit_mode) {
         // case 0:
         //     cc_argv[cc_argc++] = make_message("%s/afl-llvm-rt.o", rt_path);
@@ -157,16 +179,17 @@ void edit_args(int argc, char *argv[])
     }
 
     cc_argv[cc_argc] = NULL;
+    return cc_argc;
 }
 
 int main(int argc, char** argv)
 {
-    find_rt(argv[0]);
+    size_t len = argc + 32;
+    char **cc_argv = malloc(len * sizeof(cc_argv[0]));
 
-    edit_args(argc, argv);
+    edit_args(cc_argv, len, argc, argv, find_lib_path(argv[0]));
 
     execvp(cc_argv[0], cc_argv);
 
-    fprintf(stderr, "Fail to execute %s", cc_argv[0]);
-    return 1;
+    die("Fail to execute %s", cc_argv[0]);
 }
