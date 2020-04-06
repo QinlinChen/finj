@@ -45,7 +45,7 @@ int checkpoint(const char *funcname, const char *file,
     if ((id = fork_snapshot()) < 0) {
         /* Log is initialize automatically */
         log_unix_error("Fail to snapshot");
-        return 0;   /* Ignore snapshot error and continue. */
+        return 0; /* Ignore snapshot error and continue. */
     }
 
     /* Original process: continue. */
@@ -71,7 +71,7 @@ static int fork_snapshot()
         return ORIGINAL_PROC;
     }
 
-    setpgid(getpid(), 0);   /* Avoid signals from the parent process group. */
+    setpgid(getpid(), 0); /* Avoid signals from the parent process group. */
     return SNAPSHOT_PROC;
 }
 
@@ -111,8 +111,8 @@ static void init_monitor(pid_t pid)
 
 static void snapshot_exit(int status)
 {
-    close_all_fds(NULL); /* Prevent flush streams. */
-    _exit(status);       /* Prevent intrigue handlers registered in atexit(). */
+    close_all_fds(NULL); /* Prevent flushing streams. */
+    _exit(status);  /* Prevent intriguing handlers registered in atexit(). */
 }
 
 static void monitor_exit(int status)
@@ -184,9 +184,9 @@ enum {
 };
 
 /* Define macros to manipulate struct user_regs_struct. */
-#define SYSCALL_NUM(regs) ((regs)->orig_rax)
+#define SYSCALL_NUM(regs)  ((regs)->orig_rax)
 #define SYSCALL_NAME(regs) (syscall_name(SYSCALL_NUM(regs)))
-#define SYSCALL_RET(regs) ((regs)->rax)
+#define SYSCALL_RET(regs)  ((regs)->rax)
 #define SYSCALL_ARG1(regs) ((regs)->rdi)
 #define SYSCALL_ARG2(regs) ((regs)->rsi)
 #define SYSCALL_ARG3(regs) ((regs)->rdx)
@@ -304,7 +304,7 @@ static int handle_enter_syscall(struct context *ctx)
     if (!in_side_effect_list(syscall_num))
         return SYSCALL_CONT;
 
-    /* Futher determine whether the syscall has side effects. */
+    /* Further determine whether the syscall has side effects. */
     switch (syscall_num) {
     case SYS_open: return on_enter_open(ctx);
     case SYS_openat: return on_enter_openat(ctx);
@@ -364,7 +364,8 @@ static int side_effect_list[] = {
 
 static int in_side_effect_list(int syscall_num)
 {
-    return find_in_array(syscall_num, side_effect_list, ARRAY_LEN(side_effect_list)) != -1;
+    return find_in_array(syscall_num,
+        side_effect_list, ARRAY_LEN(side_effect_list)) != -1;
 }
 
 /* In order to avoid the snapshot generating side effects and make it
@@ -414,7 +415,7 @@ static int in_side_effect_list(int syscall_num)
 
    We use 'fd_info' below to record authorities for fds. It will set
    authorities of all fds that inherited from parent as W_STAR on
-   initialization and privoid methods for monitor to change the authority
+   initialization and provide methods for monitor to change the authority
    of fds after seeing the snapshot do any io operations on it. */
 
 #ifndef OPEN_MAX
@@ -540,7 +541,7 @@ static void on_exit_o(int ret_fd)
         return;
     }
     if (expect_error_on_exit_o) {
-        log_error("on_enter_o has error");
+        log_error("on_enter_o expects error on exit but returns %d", ret_fd);
         monitor_exit(EXIT_FAILURE);
     }
     fds_info_set_auth(ret_fd, set_auth_on_exit_o);
@@ -570,7 +571,7 @@ static int on_enter_r(int fd)
 static int on_enter_w(int fd)
 {
     if (fds_info_get_auth(fd) == AUTH_ANY)
-        return SYSCALL_CONT;    /* It is safe to write log file. */
+        return SYSCALL_CONT; /* It is safe to write log file. */
 
     if (fds_info_get_auth(fd) == AUTH_W_STAR)
         return SYSCALL_FAKE;
@@ -587,7 +588,12 @@ static int on_enter_w(int fd)
 
 static int on_enter_open(struct context *ctx)
 {
-    const char *filename = (const char *)SYSCALL_ARG1(&ctx->regs);
+    const char *filename = proc_path_read(
+        ctx->pid, (const char *)SYSCALL_ARG1(&ctx->regs));
+    if (!filename) {
+        log_unix_error("proc_path_read error");
+        monitor_exit(EXIT_FAILURE);
+    }
     int flags = (int)SYSCALL_ARG2(&ctx->regs);
     return on_enter_o(AT_FDCWD, filename, flags);
 }
@@ -595,7 +601,12 @@ static int on_enter_open(struct context *ctx)
 static int on_enter_openat(struct context *ctx)
 {
     int dirfd = (int)SYSCALL_ARG1(&ctx->regs);
-    const char *filename = (const char *)SYSCALL_ARG2(&ctx->regs);
+    const char *filename = proc_path_read(
+        ctx->pid, (const char *)SYSCALL_ARG2(&ctx->regs));
+    if (!filename) {
+        log_unix_error("proc_path_read error");
+        monitor_exit(EXIT_FAILURE);
+    }
     int flags = (int)SYSCALL_ARG3(&ctx->regs);
     return on_enter_o(dirfd, filename, flags);
 }

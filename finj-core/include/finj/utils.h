@@ -32,6 +32,8 @@ void close_all_fds(int (*whitelist)(int));
 int proc_fstat(pid_t pid, int fd, struct stat *buf);
 int proc_fd_name(pid_t pid, int fd, char *buf, size_t size);
 int proc_traverse_fds(pid_t pid, void (*handle)(int));
+int proc_mem_read(pid_t pid, long addr, char *buf, size_t size);
+const char *proc_path_read(pid_t pid, const char *addr);
 
 /* misc */
 int find_in_array(int val, int arr[], int size);

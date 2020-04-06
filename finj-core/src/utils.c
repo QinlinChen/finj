@@ -219,6 +219,44 @@ int proc_traverse_fds(pid_t pid, void (*handle)(int))
     return 0;
 }
 
+int proc_mem_read(pid_t pid, long addr, char *buf, size_t size)
+{
+    char file[128];
+    int fd, nread;
+
+    snprintf(file, ARRAY_LEN(file), "/proc/%d/mem", (int)pid);
+    if ((fd = open(file, O_RDONLY)) < 0)
+        return -1;
+
+    if (lseek(fd, addr, SEEK_SET) == (off_t)-1)
+        goto errout;
+
+    if ((nread = read(fd, buf, size)) < 0)
+        goto errout;
+
+    close(fd);
+    return nread;
+
+errout:
+    close(fd);
+    return -1;
+}
+
+const char *proc_path_read(pid_t pid, const char *addr)
+{
+    static char path[128];
+    int nread;
+
+    if ((nread = proc_mem_read(pid, (long)addr, path, ARRAY_LEN(path))) < 0)
+        return NULL;
+
+    if (nread == ARRAY_LEN(path))
+        nread--;
+    path[nread] = '\0';
+
+    return path;
+}
+
 /* ------------------------------------------------
  *                     misc
  * ------------------------------------------------ */
