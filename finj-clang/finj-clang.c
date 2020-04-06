@@ -57,9 +57,8 @@ char *alloc_printf(const char *fmt, ...)
 char *dup_dir(char *path)
 {
     char *slash = strrchr(path, '/');
-    if (!slash) {
+    if (!slash)
         return NULL;
-    }
 
     *slash = '\0';
     char *dir = mystrdup(path);
@@ -148,32 +147,23 @@ int edit_args(char *cc_argv[], size_t len,
             cc_argv[cc_argc++] = "none";
         }
 
-        if (bit_mode != 0) {
-            // TODO: support it.
-            die("-m32 and -m64 is not supported.");
+        switch (bit_mode) {
+        case 0:
+            cc_argv[cc_argc++] = alloc_printf("%s/" FINJ_LLVM_RT_LIB, lib_path);
+            break;
+        case 32:
+            die("-m32 is not supported.");  // TODO: support -m32
+            cc_argv[cc_argc++] = alloc_printf("%s/libfinj-llvm-rt-32.a", lib_path);
+            if (access(cc_argv[cc_argc - 1], R_OK))
+                die("-m32 is not supported by your compiler.");
+            break;
+        case 64:
+            die("-m64 is not supported.");  // TODO: support -m64
+            cc_argv[cc_argc++] = alloc_printf("%s/libfinj-llvm-rt-64.a", lib_path);
+            if (access(cc_argv[cc_argc - 1], R_OK))
+                die("-m64 is not supported by your compiler.");
+            break;
         }
-
-        cc_argv[cc_argc++] = alloc_printf("%s/" FINJ_LLVM_RT_LIB, lib_path);
-
-        // switch (bit_mode) {
-        // case 0:
-        //     cc_argv[cc_argc++] = make_message("%s/afl-llvm-rt.o", rt_path);
-        //     break;
-        // case 32:
-        //     cc_argv[cc_argc++] = make_message("%s/afl-llvm-rt-32.o", rt_path);
-        //     if (access(cc_argv[cc_argc - 1], R_OK)) {
-        //         fprintf(stderr, "-m32 is not supported by your compiler");
-        //         exit(1);
-        //     }
-        //     break;
-        // case 64:
-        //     cc_argv[cc_argc++] = make_message("%s/afl-llvm-rt-64.o", rt_path);
-        //     if (access(cc_argv[cc_argc - 1], R_OK)) {
-        //         fprintf(stderr, "-m64 is not supported by your compiler");
-        //         exit(1);
-        //     }
-        //     break;
-        // }
     }
 
     cc_argv[cc_argc] = NULL;

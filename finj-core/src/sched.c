@@ -18,7 +18,7 @@ int is_during_test()
 
 int is_time_to_enter_test()
 {
-    return 0;   // FIXME:
+    return 1;
 }
 
 int is_time_to_exit_test()
