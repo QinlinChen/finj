@@ -97,8 +97,8 @@ static const char *level_to_str(int level)
 {
     switch (level) {
     case LEVEL_DEBUG:   return "DEBUG";
-    case LEVEL_INFO:    return "INFO";
-    case LEVEL_WARN:    return "WARN";
+    case LEVEL_INFO:    return "INFO ";
+    case LEVEL_WARN:    return "WARN ";
     case LEVEL_ERROR:   return "ERROR";
     case LEVEL_FATAL:   return "FATAL";
     default:
