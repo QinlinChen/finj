@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define LOG_FILE    "/tmp/finj.log"
-#define LOG_LEVEL   LEVEL_INFO
+#define LOG_LEVEL   LEVEL_ERROR
 
 enum {
     LEVEL_DEBUG, LEVEL_INFO, LEVEL_WARN, LEVEL_ERROR, LEVEL_FATAL

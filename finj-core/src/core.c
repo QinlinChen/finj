@@ -44,7 +44,8 @@ int checkpoint(const char *funcname, const char *file,
 
     if ((id = fork_snapshot()) < 0) {
         /* Log is initialize automatically */
-        log_unix_error("Fail to snapshot");
+        if (errno != EAGAIN)
+            log_unix_error("Fail to snapshot");
         return 0; /* Ignore snapshot error and continue. */
     }
 
@@ -86,7 +87,8 @@ static void init_snapshot()
 
     pid_t pid;
     if ((pid = fork()) < 0) {
-        log_unix_error("Fail to fork a monitor");
+        if (errno != EAGAIN)
+            log_unix_error("Fail to fork a monitor");
         snapshot_exit(EXIT_FAILURE);
     }
 
