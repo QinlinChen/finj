@@ -40,7 +40,7 @@ CXXFLAGS ?= -O3
 CXXFLAGS += -Wall -g
 
 LLVM_CONFIG ?= llvm-config
-CLANG_CFL   := `$(LLVM_CONFIG) --cxxflags` $(CXXFLAGS)
+CLANG_CFL   := `$(LLVM_CONFIG) --cxxflags` -Wl,-znodelete -fno-rtti $(CXXFLAGS)
 CLANG_LFL   := `$(LLVM_CONFIG) --ldflags` $(LDFLAGS)
 
 AR      := ar
@@ -65,7 +65,7 @@ $(obj_dir)/%.o: %.c
 
 $(finjllvmpass_lib): $(finjllvmpass_src)
 	@echo + CXX $(notdir $@)
-	@$(CXX) $(CLANG_CFL) -fno-rtti -fPIC -shared $< -o $@ $(CLANG_LFL)
+	@$(CXX) $(CLANG_CFL) -fPIC -shared $< -o $@ $(CLANG_LFL)
 
 $(finjclang_bin): $(finjclang_src)
 	@echo + CC $(notdir $@)

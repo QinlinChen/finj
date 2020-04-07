@@ -54,7 +54,7 @@ static void registerFINJInst(const PassManagerBuilder &,
 }
 
 static RegisterStandardPasses Register(
-    PassManagerBuilder::EP_OptimizerLast, registerFINJInst);
+    PassManagerBuilder::EP_ModuleOptimizerEarly, registerFINJInst);
 
 static RegisterStandardPasses RegisterLevel0(
     PassManagerBuilder::EP_EnabledOnOptLevel0, registerFINJInst);
