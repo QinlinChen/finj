@@ -329,6 +329,8 @@ static void on_exit_close(struct context *ctx);
 static int on_enter_read(struct context *ctx);
 static int on_enter_lseek(struct context *ctx);
 static int on_enter_write(struct context *ctx);
+static int on_enter_mmap(struct context *ctx);
+static int on_enter_tgkill(struct context *ctx);
 
 static int handle_enter_syscall(struct context *ctx)
 {
@@ -345,6 +347,8 @@ static int handle_enter_syscall(struct context *ctx)
     case SYS_read: return on_enter_read(ctx);
     case SYS_lseek: return on_enter_lseek(ctx);
     case SYS_write: return on_enter_write(ctx);
+    case SYS_mmap: return on_enter_mmap(ctx);
+    case SYS_tgkill: return on_enter_tgkill(ctx);
     default:
         return SYSCALL_TERM;
     }
@@ -688,6 +692,23 @@ static int on_enter_write(struct context *ctx)
     }
 
     return result;
+}
+
+static int on_enter_mmap(struct context *ctx)
+{
+    int flags = SYSCALL_ARG4(&ctx->regs);
+    if (flags | MAP_PRIVATE)
+        return SYSCALL_CONT;
+    return SYSCALL_TERM;
+}
+
+static int on_enter_tgkill(struct context *ctx)
+{
+    int tgid = SYSCALL_ARG1(&ctx->regs);
+    int tid = SYSCALL_ARG2(&ctx->regs);
+    if (tgid == ctx->pid && tid == tgid)
+        return SYSCALL_CONT; /* The snapshot will kill itself. */
+    return SYSCALL_TERM;
 }
 
 /* Signal handlers are used to detect crashed, which is our test oracle.

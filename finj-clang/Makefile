@@ -90,6 +90,12 @@ install: all
 	@cp $(finjclangxx_bin) $(finj_bin_path)
 
 test: test/main.c all
+	@mkdir -p $(build_dir)/test
 	@echo + CC test/main.c
-	@$(finjclang_bin) ./test/main.c -o $(build_dir)/test_main
-	$(build_dir)/test_main
+	@$(finjclang_bin) ./test/main.c -o $(build_dir)/test/main
+	@cat /dev/null > /tmp/finj.log
+	-$(build_dir)/test/main
+	@sleep 1
+	@echo "-------------- /tmp/finj.log -----------------"
+	@cat /tmp/finj.log
+	@echo "----------------------------------------------"
