@@ -1,6 +1,6 @@
-#include "finj/config.h"
 #include "finj/sys.h"
 
+#include "finj/config.h"
 #include "finj/sched.h"
 
 static int _during_test = 0;

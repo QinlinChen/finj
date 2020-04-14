@@ -1,9 +1,9 @@
-#include "finj/config.h"
 #include "finj/sys.h"
 
 #include <dirent.h>
 #include <sys/wait.h>
 
+#include "finj/config.h"
 #include "finj/utils.h"
 
 /* ------------------------------------------------
@@ -118,10 +118,6 @@ int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len)
     return fcntl(fd, cmd, &lock);
 }
 
-#ifndef OPEN_MAX
-#define OPEN_MAX 1024
-#endif /* OPEN_MAX */
-
 static int try_close_all_fds(int (*whitelist)(int))
 {
     DIR *dir;
@@ -169,16 +165,20 @@ void close_all_fds(int (*whitelist)(int))
         force_close_all_fds(whitelist);
 }
 
+/* ------------------------------------------------
+ *                     procfs
+ * ------------------------------------------------ */
+
 int proc_fstat(pid_t pid, int fd, struct stat *buf)
 {
-    char file[64];
+    char file[MAXNAME];
     snprintf(file, ARRAY_LEN(file), "/proc/%d/fd/%d", (int)pid, fd);
     return stat(file, buf);
 }
 
 int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
 {
-    char link[64];
+    char link[MAXNAME];
     size_t len;
 
     snprintf(link, ARRAY_LEN(link), "/proc/%d/fd/%d", (int)pid, fd);
@@ -197,9 +197,9 @@ int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
     return len;
 }
 
-int proc_traverse_fds(pid_t pid, void (*handle)(int))
+int proc_traverse_fds(pid_t pid, void (*handle)(pid_t, int))
 {
-    char dirname[128];
+    char dirname[MAXNAME];
     DIR *dir;
     struct dirent *ent;
 
@@ -210,7 +210,7 @@ int proc_traverse_fds(pid_t pid, void (*handle)(int))
     while ((ent = readdir(dir)) != NULL) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
             continue;
-        handle(atoi(ent->d_name));
+        handle(pid, atoi(ent->d_name));
     }
 
     if (closedir(dir) == -1)
@@ -219,42 +219,45 @@ int proc_traverse_fds(pid_t pid, void (*handle)(int))
     return 0;
 }
 
-int proc_mem_read(pid_t pid, long addr, char *buf, size_t size)
+int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
 {
-    char file[128];
+    char file[MAXNAME];
     int fd, nread;
 
     snprintf(file, ARRAY_LEN(file), "/proc/%d/mem", (int)pid);
     if ((fd = open(file, O_RDONLY)) < 0)
         return -1;
 
-    if (lseek(fd, addr, SEEK_SET) == (off_t)-1)
-        goto errout;
+    if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
+        goto close_and_err_out;
 
     if ((nread = read(fd, buf, size)) < 0)
-        goto errout;
+        goto close_and_err_out;
 
     close(fd);
     return nread;
 
-errout:
+close_and_err_out:
     close(fd);
     return -1;
 }
 
-const char *proc_path_read(pid_t pid, const char *addr)
+int proc_str_read(pid_t pid, void *addr, char *buf, size_t size)
 {
-    static char path[128];
     int nread;
 
-    if ((nread = proc_mem_read(pid, (long)addr, path, ARRAY_LEN(path))) < 0)
-        return NULL;
+    if (size <= 0) {
+        errno = EINVAL;
+        return -1;
+    }
 
-    if (nread == ARRAY_LEN(path))
+    if ((nread = proc_mem_read(pid, addr, buf, size)) < 0)
+        return -1;
+
+    if (nread == (int)size)
         nread--;
-    path[nread] = '\0';
-
-    return path;
+    buf[nread] = '\0';
+    return nread;
 }
 
 /* ------------------------------------------------

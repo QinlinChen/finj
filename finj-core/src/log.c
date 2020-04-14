@@ -10,19 +10,26 @@
 static FILE *_logfp = NULL;
 static const char *_log_identity = "anon";
 
-FILE *init_log()
+int init_log()
 {
     if (_logfp)
-        return _logfp;
-    _logfp = fopen(LOG_FILE, "a");
-    return _logfp;
+        return 0;
+    _logfp = fopen(config.log_file, "a");
+    return _logfp ? 0 : -1;
+}
+
+int reinit_log()
+{
+    if (_logfp)
+        fclose(_logfp);
+    _logfp = fopen(config.log_file, "a");
+    return _logfp ? 0 : -1;
 }
 
 FILE *get_logfp()
 {
-    if (!_logfp)
-        if (init_log() == NULL)
-            return NULL;
+    if (!_logfp && init_log() != 0)
+        return NULL;
     return _logfp;
 }
 
@@ -93,7 +100,33 @@ err_out:
     return buf;
 }
 
-static const char *level_to_str(int level)
+void log_without_lock(int level, const char *format, ...)
+{
+    if (LEVEL_LT(level, config.log_level))
+        return;
+
+    FILE *fp;
+    if (!(fp = get_logfp()))
+        return;
+
+    char prefix[MAXLINE], tm[64], comm[MAXLINE];
+    snprintf(prefix, ARRAY_LEN(prefix), "[%s %s %s(%ld)](%s)",
+             level_to_str(level), read_time(tm, ARRAY_LEN(tm)),
+             _log_identity, (long)getpid(),
+             read_cmdline(comm, ARRAY_LEN(comm)));
+
+    char text[MAXLINE];
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(text, ARRAY_LEN(text), format, ap);
+    va_end(ap);
+
+    /* Do fprintf all at once to keep atomicity if possible. */
+    fprintf(fp, "%s%s", prefix, text);
+    fflush(fp);
+}
+
+const char *level_to_str(int level)
 {
     switch (level) {
     case LEVEL_DEBUG:   return "DEBUG";
@@ -107,28 +140,17 @@ static const char *level_to_str(int level)
     return "UNKNOWN";
 }
 
-void log_without_lock(int level, const char *format, ...)
+int str_to_level(const char *str)
 {
-    if (LEVEL_LT(level, LOG_LEVEL))
-        return;
-
-    FILE *fp;
-    if (!(fp = get_logfp()))
-        return;
-
-    char prefix[256], tm[64], comm[64];
-    snprintf(prefix, ARRAY_LEN(prefix), "[%s %s %s(%ld)](%s)",
-             level_to_str(level), read_time(tm, ARRAY_LEN(tm)),
-             _log_identity, (long)getpid(),
-             read_cmdline(comm, ARRAY_LEN(comm)));
-
-    char text[256];
-    va_list ap;
-    va_start(ap, format);
-    vsnprintf(text, ARRAY_LEN(text), format, ap);
-    va_end(ap);
-
-    /* Do fprintf all at once to keep atomicity if possible. */
-    fprintf(fp, "%s%s", prefix, text);
-    fflush(fp);
+    if (strcmp(str, "DEBUG") == 0)
+        return LEVEL_DEBUG;
+    if (strcmp(str, "INFO") == 0)
+        return LEVEL_INFO;
+    if (strcmp(str, "WARN") == 0)
+        return LEVEL_WARN;
+    if (strcmp(str, "ERROR") == 0)
+        return LEVEL_ERROR;
+    if (strcmp(str, "FATAL") == 0)
+        return LEVEL_FATAL;
+    return -1;
 }

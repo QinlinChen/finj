@@ -1,9 +1,9 @@
-#include "finj/config.h"
 #include "finj/sys.h"
 
 #include <sys/wait.h>
 #include <sys/mman.h>
 
+#include "finj/config.h"
 #include "finj/log.h"
 #include "finj/utils.h"
 #include "finj/sched.h"
@@ -11,6 +11,7 @@
 #define SNAPSHOT_PROC 0
 #define ORIGINAL_PROC 1
 
+static void once_load_config();
 static int fork_snapshot();
 static void init_snapshot();
 static void init_monitor(pid_t pid);
@@ -27,10 +28,13 @@ static void log_unmapped_areas();
 int checkpoint(const char *funcname, const char *file,
                const char *caller, int line)
 {
+    static int test_id = 0;
+    once_load_config();
+
     if (is_during_test()) {
         /* Determine whether to terminate the test. */
         if (is_time_to_exit_test()) {
-            log_debug("Exit from %s[%s:%s:%d]", funcname, file, caller, line);
+            log_info("Exit from %s[%s:%s:%d]", funcname, file, caller, line);
             snapshot_exit(EXIT_SUCCESS);
         }
         return 0;
@@ -39,24 +43,54 @@ int checkpoint(const char *funcname, const char *file,
     if (!is_time_to_enter_test())
         return 0;
 
-    /* Otherwise, we fork a snapshot and begin test. */
-    int id;
+    /* Begin test. 'test_id' is used to replay. */
+    test_id++;
 
+    /* In replay mode, test will be executed really on the original process. */
+    if (config.replay_mode) {
+        if (test_id == config.replay_id)
+            return 1;
+        return 0;
+    }
+
+    /* Otherwise, we fork a snapshot and virutally execute test on it. */
+    int id;
     if ((id = fork_snapshot()) < 0) {
-        /* Log is initialize automatically */
+        /* Log is initialized automatically */
         if (errno != EAGAIN)
             log_unix_error("Fail to snapshot");
         return 0; /* Ignore snapshot error and continue. */
     }
 
-    /* Original process: continue. */
+    /* Original process: continue as if nothing happened. */
     if (id == ORIGINAL_PROC)
         return 0;
 
     /* Snapshot process: fork a monitor and prepare test environment. */
     init_snapshot();
-    log_debug("Enter from %s[%s:%s:%d]", funcname, file, caller, line);
+    log_info("Enter from %s[%s:%s:%d]: id=%d",
+             funcname, file, caller, line, test_id);
     return 1;
+}
+
+static void once_load_config()
+{
+    static int done = 0;
+    if (done)
+        return;
+    done = 1;
+
+    const char *home = getenv("HOME");
+    if (!home)
+        return;
+
+    char config_file[MAXNAME];
+    snprintf(config_file, ARRAY_LEN(config_file), "%s/.finjconfig", home);
+    int ret = load_config(config_file);
+    if (ret == -1)
+        log_unix_error("load config error");
+    else if (ret == -2)
+        log_error("config format error");
 }
 
 /* Create a snapshot. */
@@ -78,12 +112,9 @@ static int fork_snapshot()
 
 static void init_snapshot()
 {
-    /* Note: we can only use log() followed by exit() before the monitor
-       is initialized. That is to avoid the snapshot initializing the log
-       and sharing it with the monitor forked afterwords. */
-
     set_log_identity("snapshot");
     unmap_shared_memory();
+    log_unmapped_areas();
 
     pid_t pid;
     if ((pid = fork()) < 0) {
@@ -105,10 +136,11 @@ static void init_snapshot()
 
 static void init_monitor(pid_t pid)
 {
-    set_log_identity("monitor");
     close_all_fds(NULL);
+    reinit_log(); /* Log was closed by close_all_fds() just now. */
+    set_log_identity("monitor");
+
     init_fds_info(pid);
-    log_unmapped_areas();
 }
 
 static void snapshot_exit(int status)
@@ -420,10 +452,6 @@ static int in_side_effect_list(int syscall_num)
    initialization and provide methods for monitor to change the authority
    of fds after seeing the snapshot do any io operations on it. */
 
-#ifndef OPEN_MAX
-#define OPEN_MAX 1024
-#endif /* OPEN_MAX */
-
 enum {
     AUTH_EMPTY = 0,
     AUTH_ANY,
@@ -475,8 +503,14 @@ static void fds_info_reset_fd(int fd)
     fds_info.can_r[fd] = 1;
 }
 
-static void set_auth_of_inherited_fd(int fd)
+static void set_auth_of_inherited_fd(pid_t pid, int fd)
 {
+    char fd_name[MAXNAME];
+    if (proc_fd_name(pid, fd, fd_name, ARRAY_LEN(fd_name)) > 0 &&
+        strcmp(fd_name, config.log_file) == 0) {
+        fds_info_set_auth(fd, AUTH_ANY);
+        return;
+    }
     fds_info_set_auth(fd, AUTH_W_STAR);
 }
 
@@ -515,7 +549,7 @@ static int on_enter_o(int dirfd, const char *filename, int flags)
     set_auth_on_exit_o = AUTH_EMPTY;
     expect_error_on_exit_o = 0;
 
-    if (filename && strcmp(filename, LOG_FILE) == 0) {
+    if (filename && strcmp(filename, config.log_file) == 0) {
         set_auth_on_exit_o = AUTH_ANY;
         return SYSCALL_CONT;
     }
@@ -590,26 +624,28 @@ static int on_enter_w(int fd)
 
 static int on_enter_open(struct context *ctx)
 {
-    const char *filename = proc_path_read(
-        ctx->pid, (const char *)SYSCALL_ARG1(&ctx->regs));
-    if (!filename) {
-        log_unix_error("proc_path_read error");
+    char filename[MAXNAME];
+    if (proc_str_read(ctx->pid, (void *)SYSCALL_ARG1(&ctx->regs),
+                      filename, ARRAY_LEN(filename)) <= 0) {
+        log_unix_error("proc_str_read error");
         monitor_exit(EXIT_FAILURE);
     }
     int flags = (int)SYSCALL_ARG2(&ctx->regs);
+
     return on_enter_o(AT_FDCWD, filename, flags);
 }
 
 static int on_enter_openat(struct context *ctx)
 {
     int dirfd = (int)SYSCALL_ARG1(&ctx->regs);
-    const char *filename = proc_path_read(
-        ctx->pid, (const char *)SYSCALL_ARG2(&ctx->regs));
-    if (!filename) {
-        log_unix_error("proc_path_read error");
+    char filename[MAXNAME];
+    if (proc_str_read(ctx->pid, (void *)SYSCALL_ARG2(&ctx->regs),
+                      filename, ARRAY_LEN(filename)) <= 0) {
+        log_unix_error("proc_str_read error");
         monitor_exit(EXIT_FAILURE);
     }
     int flags = (int)SYSCALL_ARG3(&ctx->regs);
+
     return on_enter_o(dirfd, filename, flags);
 }
 

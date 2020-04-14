@@ -4,22 +4,23 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LOG_FILE    "/tmp/finj.log"
-#define LOG_LEVEL   LEVEL_ERROR
-
 enum {
     LEVEL_DEBUG, LEVEL_INFO, LEVEL_WARN, LEVEL_ERROR, LEVEL_FATAL
 };
 
 #define LEVEL_LT(lhs, rhs) ((lhs) < (rhs))
 
-FILE *init_log();
+int init_log();
+int reinit_log();
 FILE *get_logfp();
 int get_logfd();
 void set_log_identity(const char *new_identity);
 void lock_logfile();
 void unlock_logfile();
 void log_without_lock(int level, const char *format, ...);
+
+int str_to_level(const char *str);
+const char *level_to_str(int level);
 
 #define log_debug(format, ...) \
     do { \

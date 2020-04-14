@@ -75,7 +75,7 @@ $(finjclangxx_bin): $(finjclang_bin)
 	@echo + ln $(notdir $@)
 	@ln -srf $(finjclang_bin) $(finjclangxx_bin)
 
-.PHONY: clean install
+.PHONY: clean install test
 
 clean:
 	-rm -f $(gens)
@@ -88,3 +88,8 @@ install: all
 	@cp $(finjllvmpass_lib) $(finj_lib_path)
 	@cp $(finjclang_bin) $(finj_bin_path)
 	@cp $(finjclangxx_bin) $(finj_bin_path)
+
+test: test/main.c all
+	@echo + CC test/main.c
+	@$(finjclang_bin) ./test/main.c -o $(build_dir)/test_main
+	$(build_dir)/test_main
