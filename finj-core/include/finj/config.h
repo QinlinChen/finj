@@ -22,6 +22,7 @@ struct finj_config {
     int log_level;
     int replay_mode;
     int replay_id;
+    int sched_prob;
 };
 
 extern struct finj_config config;

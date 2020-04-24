@@ -1,5 +1,7 @@
 #include "finj/sys.h"
 
+#include <ctype.h>
+
 #include "finj/config.h"
 #include "finj/log.h"
 #include "finj/utils.h"
@@ -10,39 +12,105 @@ struct finj_config config = {
     .log_level = LEVEL_ERROR,
     .replay_mode = 0,
     .replay_id = 0,
+    .sched_prob = 100,
 };
+
+static char *eat_space(char *p)
+{
+    while (*p != '\0' && isspace(*p))
+        p++;
+    return p;
+}
+
+static int parse_line(char *line, char **key, char **val)
+{
+    char *p = eat_space(line);
+    if (*p == '\0' || *p == '#')
+        return 0; /* Empty lines and comment lines */
+
+    /* Parse key. */
+    *key = p;
+    if ((p = strchr(p, ':')) == NULL || *key == p)
+        return -1;
+    *p++ = '\0';
+
+    /* Parse value. */
+    p = eat_space(p);
+    if (*p == '\0')
+        return -2;
+    *val = p;
+    while (*p != '\0' && !isspace(*p))
+        p++;
+    *p = '\0';
+
+    return 1;
+}
+
+static int config_set(const char *key, const char *val)
+{
+    int log_level, replay_mode, replay_id, sched_prob;
+
+    if (!strcmp(key, "log_file")) {
+        strcpy(config.log_file, val);
+        return 0;
+    }
+    if (!strcmp(key, "log_level")) {
+        log_level = str_to_level(val);
+        if (log_level == -1)
+            return -1;
+        config.log_level = log_level;
+        return 0;
+    }
+    if (!strcmp(key, "replay_mode")) {
+        if (sscanf(val, "%d", &replay_mode) != 1)
+            return -1;
+        config.replay_mode = replay_mode;
+        return 0;
+    }
+    if (!strcmp(key, "replay_id")) {
+        if (sscanf(val, "%d", &replay_id) != 1)
+            return -1;
+        config.replay_id = replay_id;
+        return 0;
+    }
+    if (!strcmp(key, "sched_prob")) {
+        if (sscanf(val, "%d", &sched_prob) != 1)
+            return -1;
+        config.sched_prob = sched_prob;
+        return 0;
+    }
+    return -1;
+}
 
 int load_config(const char *file)
 {
     FILE *fp;
     char line[MAXLINE];
-    char log_file[MAXNAME], log_level_buf[256];
-    int log_level, replay_mode, replay_id;
 
     if ((fp = fopen(file, "r")) == NULL)
         return -1;
 
-    char *ret = readline(fp, line, ARRAY_LEN(line));
-    if (ret == (char *)-1)
-        goto close_and_err_out;
-    if (!ret)
-        goto close_and_fmterr_out;
-    if (sscanf(line, "%s %s %d %d",
-               log_file, log_level_buf, &replay_mode, &replay_id) != 4)
-        goto close_and_fmterr_out;
+    /* Read and parse lines.*/
+    while (1) {
+        char *ret, *key, *val;
+        int parse_ok;
 
-    log_level = str_to_level(log_level_buf);
-    if (log_level == -1)
-        goto close_and_fmterr_out;
-    if (replay_mode != 0 && replay_mode != 1)
-        goto close_and_fmterr_out;
-    if (replay_id < 0)
-        goto close_and_fmterr_out;
+        ret = readline(fp, line, ARRAY_LEN(line));
+        if (ret == (char *)-1)
+            goto close_and_err_out;
+        if (!ret)
+            break;
 
-    strcpy(config.log_file, log_file);
-    config.log_level = log_level;
-    config.replay_mode = replay_mode;
-    config.replay_id = replay_id;
+        parse_ok = parse_line(line, &key, &val);
+        if (parse_ok == 1) {
+            if (config_set(key, val) != 0)
+                log_error("Fail to set configure %s=%s", key, val);
+        } else if (parse_ok == -1) {
+            log_error("parse key error: the line is \"%s\"", line);
+        } else if (parse_ok == -2) {
+            log_error("parse value error: the key is \"%s\"", key);
+        }
+    }
 
     fclose(fp);
     return 0;
@@ -50,9 +118,6 @@ int load_config(const char *file)
 close_and_err_out:
     fclose(fp);
     return -1;
-close_and_fmterr_out:
-    fclose(fp);
-    return -2;
 }
 
 int save_config(const char *file)
@@ -62,8 +127,11 @@ int save_config(const char *file)
     if ((fp = fopen(file, "w")) == NULL)
         return -1;
 
-    fprintf(fp, "%s %s %d %d", config.log_file, level_to_str(config.log_level),
-            config.replay_mode, config.replay_id);
+    fprintf(fp, "log_file: %s\n", config.log_file);
+    fprintf(fp, "log_level: %s\n", level_to_str(config.log_level));
+    fprintf(fp, "replay_mode: %d\n", config.replay_mode);
+    fprintf(fp, "replay_id: %d\n", config.replay_id);
+    fprintf(fp, "sched_prob: %d\n", config.sched_prob);
 
     fclose(fp);
     return 0;

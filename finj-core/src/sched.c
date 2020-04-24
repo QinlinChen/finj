@@ -23,7 +23,7 @@ static int random_scheduler(int prob)
 
 int is_time_to_enter_test()
 {
-    return random_scheduler(100);
+    return random_scheduler(config.sched_prob);
 }
 
 int is_time_to_exit_test()

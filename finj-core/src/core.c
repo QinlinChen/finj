@@ -81,17 +81,20 @@ static void once_load_config()
         return;
     done = 1;
 
-    const char *home = getenv("HOME");
-    if (!home)
-        return;
-
+    const char *home;
     char config_file[MAXNAME];
+    if (!(home = getenv("HOME")))
+        return;
     snprintf(config_file, ARRAY_LEN(config_file), "%s/.finjconfig", home);
+
+    if (access(config_file, F_OK) != 0) {
+        save_config(config_file);
+        return;
+    }
+
     int ret = load_config(config_file);
     if (ret == -1)
         log_unix_error("load config error");
-    else if (ret == -2)
-        log_error("config format error");
 }
 
 /* Create a snapshot. */
