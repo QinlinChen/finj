@@ -4,6 +4,7 @@
 #include "finj/log.h"
 #include "finj/utils.h"
 
+/* Default configures. */
 struct finj_config config = {
     .log_file = "/tmp/finj.log",
     .log_level = LEVEL_ERROR,

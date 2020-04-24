@@ -16,9 +16,14 @@ int is_during_test()
     return _during_test;
 }
 
+static int random_scheduler(int prob)
+{
+    return (rand() % 100) < prob;
+}
+
 int is_time_to_enter_test()
 {
-    return 1;
+    return random_scheduler(100);
 }
 
 int is_time_to_exit_test()

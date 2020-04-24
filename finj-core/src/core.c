@@ -25,10 +25,12 @@ static void init_fds_info(pid_t pid);
 static void unmap_shared_memory();
 static void log_unmapped_areas();
 
+/* checkpoint_id is used to replay. */
+static int checkpoint_id = 0;
+
 int checkpoint(const char *funcname, const char *file,
                const char *caller, int line)
 {
-    static int test_id = 0;
     once_load_config();
 
     if (is_during_test()) {
@@ -40,20 +42,20 @@ int checkpoint(const char *funcname, const char *file,
         return 0;
     }
 
-    if (!is_time_to_enter_test())
-        return 0;
-
-    /* Begin test. 'test_id' is used to replay. */
-    test_id++;
+    checkpoint_id++;
 
     /* In replay mode, test will be executed really on the original process. */
     if (config.replay_mode) {
-        if (test_id == config.replay_id)
+        if (checkpoint_id == config.replay_id)
             return 1;
         return 0;
     }
 
-    /* Otherwise, we fork a snapshot and virutally execute test on it. */
+    /* Schedule policy determines whether to snapshot and test. */
+    if (!is_time_to_enter_test())
+        return 0;
+
+    /* In normal mode, we fork a snapshot and virutally execute test on it. */
     int id;
     if ((id = fork_snapshot()) < 0) {
         /* Log is initialized automatically */
@@ -68,8 +70,7 @@ int checkpoint(const char *funcname, const char *file,
 
     /* Snapshot process: fork a monitor and prepare test environment. */
     init_snapshot();
-    log_info("Enter from %s[%s:%s:%d]: id=%d",
-             funcname, file, caller, line, test_id);
+    log_info("Enter from %s[%s:%s:%d]", funcname, file, caller, line);
     return 1;
 }
 
@@ -711,10 +712,10 @@ static int on_enter_tgkill(struct context *ctx)
     return SYSCALL_TERM;
 }
 
-/* Signal handlers are used to detect crashed, which is our test oracle.
-   However, since we have unmapped shared memories during initializing
-   snapshot to avoid side effects, we should ignore the SIGSEGV signal
-   caused by snapshot's access of these unmapped areas. */
+/* Signal handlers are used to detect fatal signals such as SIGSEGV, which
+   work as our test oracle. However, since we have unmapped shared memories
+   during initializing snapshot to avoid side effects, we should ignore the
+   SIGSEGV signal caused by snapshot's access of these unmapped areas. */
 
 static int in_unmapped_areas(void *addr);
 
@@ -725,11 +726,11 @@ static void handle_signal(struct context *ctx)
         ptrace_getsiginfo(ctx->pid, &siginfo);
         if (in_unmapped_areas(siginfo.si_addr))
             return;
-        log_fatal("Catch SIGSEGV!");
+        log_fatal("Catch SIGSEGV from %d", checkpoint_id);
     } else if (ctx->signum == SIGABRT) {
-        log_fatal("Catch SIGABRT!");
+        log_fatal("Catch SIGABRT from %d", checkpoint_id);
     } else if (ctx->signum == SIGILL) {
-        log_fatal("Catch SIGILL!");
+        log_fatal("Catch SIGILL from %d", checkpoint_id);
     }
 }
 

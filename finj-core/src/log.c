@@ -8,7 +8,7 @@
 #include "finj/utils.h"
 
 static FILE *_logfp = NULL;
-static const char *_log_identity = "anon";
+static const char *_log_identity = "origin";
 
 int init_log()
 {
