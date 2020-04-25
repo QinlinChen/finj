@@ -2,6 +2,7 @@
 
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <time.h>
 
 #include "finj/config.h"
 #include "finj/log.h"
@@ -11,7 +12,7 @@
 #define SNAPSHOT_PROC 0
 #define ORIGINAL_PROC 1
 
-static void once_load_config();
+static void once_init_core();
 static int fork_snapshot();
 static void init_snapshot();
 static void init_monitor(pid_t pid);
@@ -31,7 +32,7 @@ static int checkpoint_id = 0;
 int checkpoint(const char *funcname, const char *file,
                const char *caller, int line)
 {
-    once_load_config();
+    once_init_core();
 
     if (is_during_test()) {
         /* Determine whether to terminate the test. */
@@ -74,19 +75,23 @@ int checkpoint(const char *funcname, const char *file,
     return 1;
 }
 
-static void once_load_config()
+static void once_init_core()
 {
     static int done = 0;
     if (done)
         return;
     done = 1;
 
+    srand(time(NULL));
+
+    /* Locate configure file. */
     const char *home;
     char config_file[MAXNAME];
     if (!(home = getenv("HOME")))
         return;
     snprintf(config_file, ARRAY_LEN(config_file), "%s/.finjconfig", home);
 
+    /* If the configure file doesn't exist, we create a default one. */
     if (access(config_file, F_OK) != 0) {
         save_config(config_file);
         return;
