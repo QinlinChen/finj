@@ -48,7 +48,7 @@ ARFLAGS := rcs
 
 all: $(gens) $(finjllvmrt_lib) $(finjllvmpass_lib) $(finjclang_bin) $(finjclangxx_bin)
 
-$(gens):%:%.temp $(llvmrt_data) $(genhook_bin)
+$(gens):%:%.tmpl $(llvmrt_data) $(genhook_bin)
 	@echo + generate $@
 	@python3 $(genhook_bin) -d $(llvmrt_data) -i $< -o $@
 

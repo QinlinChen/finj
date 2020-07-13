@@ -26,7 +26,7 @@ LD     := gcc
 
 all: $(gens) $(finjhook_lib)
 
-$(gens):%:%.temp $(hook_data) $(genhook_bin)
+$(gens):%:%.tmpl $(hook_data) $(genhook_bin)
 	@echo + generate $@
 	@python3 $(genhook_bin) -d $(hook_data) -i $< -o $@
 
