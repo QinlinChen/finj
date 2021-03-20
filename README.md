@@ -28,9 +28,9 @@ We made it by forking a **monitor process** along with the snapshot process.
 The monitor process will use `ptrace()` to watch the snapshot process and
 mock the syscalls from the snapshot process. For example, if a snapshot process
 writes a file, the monitor will swallow this write syscall and return a fake value
-to make the snapshot process believe the syscall succeeded. If the monitor cannot
-suppress any side effects of the syscalls from the snapshot process, e.g. the
-snapshot want to read a file but the monitor cannot mock the content of the file,
+to make the snapshot process believes the syscall succeeded. If the monitor cannot
+suppress any side effects of the syscalls from the snapshot process, e.g., the
+snapshot wants to read a file but the monitor cannot mock the content of the file,
 it will kill the snapshot process.
 
 You can use `make` to build a dynamic library `libfinjcore.so` that contains
@@ -38,7 +38,7 @@ You can use `make` to build a dynamic library `libfinjcore.so` that contains
 
 ## finj-clang
 Now that we have `checkpoint()`, we can test the software in the background
-without generating any side effects that can be percevied by users.
+without generating any side effects that can be perceiveed by users.
 The testing technique we choose is the **library-level fault injection**.
 
 We intend to do this by calling `checkpoint()` at the entrance of a library
@@ -59,11 +59,11 @@ versions such as this on compiling:
 
 You can use `make` to compile `finj-clang` along with some necessary runtimes.
 Then use `make install` to install them. After that, you can use `finj-clang`
-as a normal compiler to compile any project you want it to test itself during
+as a normal compiler to compile any project you want to test itself during
 the runtime.
 
 You can also find a configuration file at `/home/.finjconfig` and a log file
-at `/tmp/finj.log`.
+at `/tmp/finj.log` (after a first run).
 
 ## finj-hook (deprecated)
 This project is a deprecated way to insert `checkpoint()` to the entrances of
